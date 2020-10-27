@@ -12,6 +12,7 @@
 struct LcdDevice *init_lcd(const char *device);
 void show_chat(char * name);
 void show_weather(char * name,int x,int y,int chang,int gao);
+int music_download();
 int flag = 0;
 char *tmp;
 char *tmp2;
@@ -19,11 +20,13 @@ char rbuf1[4096*10];
 int Shut_down();
 char *p1;
 char *p2;
+char *p3;
 int  weather();
 int chark_tmd(char * name);
 int cheak_weather(char * name);
 int picture_download();
 int famous_sayings();
+int  show_famous_sayings(char * name);
 int translate();
 void sig(int arg);//信号处理函数
 typedef struct city
@@ -194,6 +197,10 @@ int main()
             translate();
             flag = 0;
             break;
+        case 9:
+            music_download();
+            flag = 0;
+            break;
         }
 
     
@@ -256,6 +263,10 @@ int chark_tmd(char * name)
          if(strstr(name,"翻译"))
         {
             flag = 7;
+        }
+        if(strstr(name,"音乐"))
+        {
+            flag = 9;
         }
         
     
@@ -320,11 +331,11 @@ int translate()
                 int len = (int)(q - p);
                 strncpy(data,p,len);
 
-                char * p_t = strstr(data,"\"{br}");
-                p_t = p_t+strlen("\"{br}");
-                char * p_f = strstr(p_t,"}");
-                int len_t =(int)(p_t-p_f);
-                strncpy(data_t,p_t,len_t);
+                // char * p_t = strstr(data,"\"{br}");
+                // p_t = p_t+strlen("\"{br}");
+                // char * p_f = strstr(p_t,"}");
+                // int len_t =(int)(p_t-p_f);
+                // strncpy(data_t,p_t,len_t);
 
 
                 printf("data %s\n",data_t);
@@ -341,7 +352,7 @@ int translate()
                 //         continue;
                 //     }
                 // }
-                show_chat(data_t);
+                show_chat(data);
 
                 sleep(10);
                 show_chat("需要什么帮助呢？");
@@ -375,31 +386,33 @@ int famous_sayings()
             {
                 printf("链接成功！\n");
             }
-            char tmd[] = "GET /api/mingyan HTTP/1.1\r\nHost:v1.alapi.cn\r\n\r\n";
+            char tmd[100] = "GET /api/mingyan HTTP/1.1\r\nHost:v1.alapi.cn\r\n\r\n";
 
             write(tcp_socket2,tmd,strlen(tmd));
-            char buf[100];
-            while(1)
-            {
-                read(tcp_socket2,buf,100);
-                        
-                        p2= strstr(buf,"{\"code\":");
-                            if(p2 !=NULL)
-                            {
-                                break;
-                            }
+            char buf[1024] = {0};
+            read(tcp_socket2,buf,1024);
+            char buff[1024] = {0};
+           
+            printf("%s\n",buf);
+            p2= strstr(buf,"{");
+            p3 = strstr(buf,"}\n}" );
+            printf("%s\n",p3);
+            p3 = p3 + 3;
+            int len2 = (int)(p3-p2);
+            printf("%d\n",len2);
+            strncpy(buff,p2,len2);
             
-            }       
-        cJSON *obj=cJSON_Parse(p2);
+           
+        cJSON *obj=cJSON_Parse(buff);
 			if(obj == NULL)
 			{
 				printf("不是JSO数据\n");
 				return 0;
 			}
             
-        cJSON *value_date=cJSON_GetObjectItem(obj,"date");
-        cJSON *value_content = cJSON_GetObjectItem(value_date,"content");
-        cJSON *value_author = cJSON_GetObjectItem(value_date,"author");
+        cJSON *value_data=cJSON_GetObjectItem(obj,"data");
+        cJSON *value_content = cJSON_GetObjectItem(value_data,"content");
+        cJSON *value_author = cJSON_GetObjectItem(value_data,"author");
 
 
 
@@ -420,8 +433,9 @@ int famous_sayings()
     
         /* 关闭LCD设备 */
         lcd_close();
-            
-        show_weather(tmp,0,0,800,480);    
+        
+
+        show_famous_sayings(tmp) ;  
         
         // int size;
         // size = stelen(tmp);
@@ -436,6 +450,66 @@ int famous_sayings()
 }
 
 
+
+int  show_famous_sayings(char * name)
+{
+
+    //初始化Lcd
+        struct LcdDevice* lcd = init_lcd("/dev/fb0");
+                
+        //打开字体	
+        font *f = fontLoad("/usr/share/fonts/DroidSansFallback.ttf");
+        
+        //字体大小的设置
+        fontSetSize(f,40);
+        
+       
+        //创建一个画板（点阵图）
+        bitmap *bm = createBitmapWithInit(800,480,4,getColor(0,49,31,14)); //也可使用createBitmapWithInit函数，改变画板颜色
+        //bitmap *bm = createBitmap(288, 100, 4);
+        
+        // char buf[] = "Hello 未来";
+        int y = 200;
+        char *t = name;
+       
+       
+       
+            if(strlen(name)>78)
+            {
+                // while(1)
+                // {
+                //     if(strlen(t) == 0)
+                //     {
+                //         break;
+                //     }
+                    char tmp[100] = {0};
+                    strncpy(tmp,name,78);
+                    fontPrint(f,bm,0,y,tmp,getColor(0,255,255,0),0);
+                    y = y + 50;
+                    t = t+78;
+                //}
+        }
+        
+      
+        //将字体写到点阵图上		  //   b  g  r   
+        fontPrint(f,bm,0,y,t,getColor(0,255,255,0),0);
+        
+                
+        //getColor(0,B,G,R)
+
+        //把字体框输出到LCD屏幕上
+        show_font_to_lcd(lcd->mp,0,0,bm);
+
+        //把字体框输出到LCD屏幕上
+        //show_font_to_lcd(lcd->mp,200,200,bm);
+
+        //关闭字体，关闭画板
+        fontUnload(f);
+        destroyBitmap(bm);
+       
+
+
+}
 
 
 
@@ -854,12 +928,170 @@ void sig(int arg)//信号处理函数
 }
 
 
+
+int music_download()
+{
+    
+      // pthread_cancel(tid);
+        struct hostent *host_m =  gethostbyname("music.163.com");
+
+        int tcp_socket5 = socket(AF_INET,SOCK_STREAM,0);
+        struct sockaddr_in server_addr;
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_port = htons(80);
+        //server_addr.sin_addr.s_addr = inet_addr("110.43.34.66");
+        server_addr.sin_addr.s_addr = inet_addr(inet_ntoa(*(struct in_addr*)host_m->h_addr_list[0]));
+        
+        int ret = connect(tcp_socket5,(struct sockaddr*)&server_addr,sizeof(server_addr));
+            if (ret < 0)
+            {
+                perror("请求失败！\n");
+            }
+            else
+            {
+                printf("链接成功！\n");
+            }
+        char tmd[100] = {0};
+        //tmd[100] = "GET /song/media/outer/url?id=1357775528 HTTP/1.1\r\nHost:music.163.com\r\n\r\n";
+        
+        sprintf(tmd,"GET /song/media/outer/url?id=1357775528 HTTP/1.1\r\nHost:music.163.com\r\n\r\n");
+        
+        //char *http_head = "GET /bangumi/play/ep341100 HTTP/1.1\r\nHost:www.bilibili.com\r\n\r\n";
+            
+            write(tcp_socket5,tmd,strlen(tmd));
+                
+            char rbuf[1024];
+           
+            read(tcp_socket5,rbuf,1024);
+
+
+
+            char *n = strstr(rbuf,"http://");
+            char *n_1 = strstr(rbuf,".mp3");
+            n_1 = n_1 + strlen(".mp3");
+            int len = (int)(n_1 - n);
+            char buff[200];
+            strncpy(buff,n,len);
+            printf("%s\n",buff);
+
+
+            char * a = strstr(buff,"http://");
+            a = a + strlen("http://m10.music.126.net");
+
+            int url_len = (int)(n_1 - a);
+            char url[200];
+            strncpy(url,a,url_len);
+            printf("%s\n",url);
+//pause();
+             
+    struct hostent *host =  gethostbyname("m10.music.126.net");
+        //https://api.dongmanxingkong.com/suijitupian/acg/1080p/index.php
+        //https://v1.alapi.cn/api/acg
+        //http://www.dmoe.cc/random.php
+    int tcp_socket10 = socket(AF_INET, SOCK_STREAM, 0);
+
+
+    struct sockaddr_in service_addr_1;
+    service_addr_1.sin_port = htons(80);
+    service_addr_1.sin_family = AF_INET;
+    service_addr_1.sin_addr.s_addr = inet_addr(inet_ntoa(*(struct in_addr*)host->h_addr_list[0]));
+
+    int ret2 = connect(tcp_socket10, (struct sockaddr *)&service_addr_1,sizeof(service_addr_1));
+        if (ret2 == -1 )
+        {
+            printf("connect lost!!!\n");
+            return -1;
+        }else
+        {
+            printf("connect success!!!\n");
+        }
+
+        
+        char http_head_1[500];
+        sprintf(http_head_1,"GET %s HTTP/1.1\r\nHOST:m10.music.126.net\r\n\r\n",url);
+
+        write(tcp_socket10,http_head_1,strlen(http_head_1));
+
+        char  head_1[2048*100] ={0};
+        int size1 = read(tcp_socket10,head_1,sizeof(head_1));
+        printf("%s\n",head_1);
+
+	
+	
+	//新建一个文件  
+
+
+       int fd=open("1.mp3",O_RDWR|O_CREAT|O_TRUNC,0777);
+			if(fd < 0)
+			{
+				perror("");
+				return -1;
+			}
+	
+	//读取头数据  
+
+	//取出文件的大小 
+	long file_size=0;
+	//下载的大小 
+	int load_size=0;
+	printf("%s\n",head_1);
+	char *p10 =  strstr(head_1,"Content-Length");  //查找关键字
+   
+	
+	sscanf(p10,"Content-Length: %ld\r\n",&file_size);
+	//求出头数据的长度 
+	p10 = strstr(head_1,"\r\n\r\n");   //回文末尾  
+	p10 = p10+4; 
+	
+  int head_len = (int)(p10 - head_1);
+      printf("head_len = %d\n",head_len);
+	
+	//写入去头的一次数据 
+	  int len1  =size1-head_len; 
+	  write(fd,p10,len1);
+	  load_size =+  len1;
+	
+	
+	while(1)
+	{
+	//回收HTTP 服务器的消息
+	char  buf[40960]={0};
+	int size=read(tcp_socket10,buf,40960);
+		load_size += size;
+		printf("file_size=%ld load_size=%d\n",file_size,load_size);
+        if(file_size == load_size)
+		{
+			printf("下载完毕\n");
+			write(fd,buf,size);
+			break;
+		}
+	     //把数据写入到本地文件中 
+		   write(fd,buf,size);
+	
+		//printf("buf=%s\n",buf);
+    
+	}
+        show_chat("正在播放音乐！！");
+        system("mplayer -slave -quiet ./1.mp3 &");
+        // pthread_cancel(tid);
+        // sleep(10);
+        // pthread_create(&tid,NULL,picture,NULL);
+        // pthread_detach(tid);
+        sleep(20);
+        system("killal -9 mplay");
+        show_chat("正在退出聊天！");
+    return 0;
+
+}
+
 int picture_download()
 {
   
   
     struct hostent *host =  gethostbyname("www.dmoe.cc");
-  
+        //https://api.dongmanxingkong.com/suijitupian/acg/1080p/index.php
+        //https://v1.alapi.cn/api/acg
+        //http://www.dmoe.cc/random.php
     int tcp_socket1 = socket(AF_INET, SOCK_STREAM, 0);
 
 
@@ -911,6 +1143,17 @@ int picture_download()
         
         sprintf(URL,"%s/%s.jpg",URL,p3);
         
+        //   while(1)
+        // {
+        //     p3 = strtok(NULL,ch);
+        //     if(p3 == NULL)
+        //     {
+        //         sprintf(URL,"/%s",URL);
+        //         break;
+            
+        //     }
+        //     sprintf(URL,"%s/%s.jpg",URL,p3);
+        // }
 
         sprintf(new_http_head,"GET %s HTTP/1.1\r\nHOST:%s\r\n\r\n",URL,yuming);
         struct hostent*main_host =  gethostbyname(yuming);
